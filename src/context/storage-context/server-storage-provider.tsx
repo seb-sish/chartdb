@@ -1,5 +1,8 @@
 import React, { useCallback, useMemo } from 'react';
-import type { StorageContext } from './storage-context';
+import type {
+    StorageContext,
+    StorageDiagramChangeEvent,
+} from './storage-context';
 import { storageContext } from './storage-context';
 
 interface StorageActionResponse<T> {
@@ -54,12 +57,20 @@ const parseStorageResponse = async <T,>(
 export const ServerStorageProvider: React.FC<React.PropsWithChildren> = ({
     children,
 }) => {
+    const clientId = useMemo(() => {
+        return (
+            globalThis.crypto?.randomUUID?.() ??
+            `${Date.now()}-${Math.random()}`
+        );
+    }, []);
+
     const callStorageAction = useCallback(
         async <T,>(action: string, payload?: unknown): Promise<T> => {
             const response = await fetch('/api/storage/action', {
                 method: 'POST',
                 headers: {
                     'content-type': 'application/json',
+                    'x-chartdb-client-id': clientId,
                 },
                 body: JSON.stringify({ action, payload }),
             });
@@ -74,11 +85,55 @@ export const ServerStorageProvider: React.FC<React.PropsWithChildren> = ({
 
             return reviveDates(responsePayload.data) as T;
         },
-        []
+        [clientId]
+    );
+
+    const subscribeToDiagramChanges = useCallback<
+        StorageContext['subscribeToDiagramChanges']
+    >(
+        (diagramId, onChange) => {
+            if (!diagramId || typeof EventSource === 'undefined') {
+                return () => undefined;
+            }
+
+            const events = new EventSource(
+                `/api/storage/events?diagramId=${encodeURIComponent(
+                    diagramId
+                )}&clientId=${encodeURIComponent(clientId)}`
+            );
+
+            const handleMessage = (event: MessageEvent<string>) => {
+                const payload = JSON.parse(
+                    event.data
+                ) as StorageDiagramChangeEvent;
+
+                if (payload.sourceClientId === clientId) {
+                    return;
+                }
+
+                onChange(payload);
+            };
+
+            const handleConnected = (event: MessageEvent<string>) => {
+                onChange(JSON.parse(event.data) as StorageDiagramChangeEvent);
+            };
+
+            events.addEventListener('diagram-change', handleMessage);
+            events.addEventListener('connected', handleConnected);
+
+            return () => {
+                events.removeEventListener('diagram-change', handleMessage);
+                events.removeEventListener('connected', handleConnected);
+                events.close();
+            };
+        },
+        [clientId]
     );
 
     const value = useMemo<StorageContext>(
         () => ({
+            subscribeToDiagramChanges,
+
             getConfig: () => callStorageAction('getConfig'),
             updateConfig: (config) => callStorageAction('updateConfig', config),
 
@@ -166,7 +221,7 @@ export const ServerStorageProvider: React.FC<React.PropsWithChildren> = ({
             deleteDiagramNotes: (diagramId) =>
                 callStorageAction('deleteDiagramNotes', diagramId),
         }),
-        [callStorageAction]
+        [callStorageAction, subscribeToDiagramChanges]
     );
 
     return (

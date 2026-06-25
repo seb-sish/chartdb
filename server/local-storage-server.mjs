@@ -8,6 +8,8 @@ const dataDir = path.resolve(process.env.STORAGE_DATA_DIR ?? './data');
 const diagramsDir = path.join(dataDir, 'diagrams');
 const filtersDir = path.join(dataDir, 'diagram-filters');
 const configPath = path.join(dataDir, 'config.json');
+const sseClients = new Map();
+let storageRevision = 0;
 
 const collections = {
     tables: 'tables',
@@ -24,6 +26,42 @@ const enqueue = (work) => {
     const result = actionQueue.then(work, work);
     actionQueue = result.catch(() => undefined);
     return result;
+};
+
+const getClientsForDiagram = (diagramId) => {
+    if (!sseClients.has(diagramId)) {
+        sseClients.set(diagramId, new Set());
+    }
+
+    return sseClients.get(diagramId);
+};
+
+const sendSseEvent = (response, eventName, payload) => {
+    response.write(`event: ${eventName}\n`);
+    response.write(`data: ${JSON.stringify(payload)}\n\n`);
+};
+
+const notifyDiagramChange = (
+    diagramId,
+    action,
+    sourceClientId,
+    type = 'diagram_changed'
+) => {
+    if (!diagramId || !sseClients.has(diagramId)) {
+        return;
+    }
+
+    const payload = {
+        type,
+        diagramId,
+        action,
+        sourceClientId,
+        revision: ++storageRevision,
+    };
+
+    for (const client of sseClients.get(diagramId)) {
+        sendSseEvent(client.response, 'diagram-change', payload);
+    }
 };
 
 const ensureStorage = async () => {
@@ -193,7 +231,7 @@ const updateCollectionItem = async (collection, id, attributes) => {
             index === itemIndex ? { ...item, ...attributes } : item
         );
         await writeDiagram(diagram);
-        return;
+        return diagramId;
     }
 };
 
@@ -254,7 +292,10 @@ const actions = {
     deleteDiagramFilter: async ({ diagramId }) =>
         deleteFile(filterPath(diagramId)),
 
-    addDiagram: async ({ diagram }) => writeDiagram(diagram),
+    addDiagram: async ({ diagram }, context) => {
+        await writeDiagram(diagram);
+        notifyDiagramChange(diagram.id, 'addDiagram', context.sourceClientId);
+    },
     listDiagrams: async ({ options }) => {
         const diagramIds = await listDiagramIds();
         const diagrams = await Promise.all(
@@ -266,7 +307,7 @@ const actions = {
     },
     getDiagram: async ({ id, options }) =>
         projectDiagram(await readDiagram(id), options),
-    updateDiagram: async ({ id, attributes }) => {
+    updateDiagram: async ({ id, attributes }, context) => {
         const diagram = await readDiagram(id);
         if (!diagram) {
             return;
@@ -287,93 +328,250 @@ const actions = {
         }
 
         await writeDiagram(nextDiagram);
+
+        if (attributes.id && attributes.id !== id) {
+            notifyDiagramChange(
+                id,
+                'updateDiagram',
+                context.sourceClientId,
+                'diagram_deleted'
+            );
+            notifyDiagramChange(
+                attributes.id,
+                'updateDiagram',
+                context.sourceClientId
+            );
+            return;
+        }
+
+        notifyDiagramChange(id, 'updateDiagram', context.sourceClientId);
     },
-    deleteDiagram: async (id) => {
+    deleteDiagram: async (id, context) => {
         await Promise.all([
             deleteFile(diagramPath(id)),
             deleteFile(filterPath(id)),
         ]);
+        notifyDiagramChange(
+            id,
+            'deleteDiagram',
+            context.sourceClientId,
+            'diagram_deleted'
+        );
     },
 
-    addTable: async ({ diagramId, table }) =>
-        addCollectionItem(diagramId, collections.tables, table),
+    addTable: async ({ diagramId, table }, context) => {
+        await addCollectionItem(diagramId, collections.tables, table);
+        notifyDiagramChange(diagramId, 'addTable', context.sourceClientId);
+    },
     getTable: async ({ diagramId, id }) =>
         getCollectionItem(diagramId, collections.tables, id),
-    updateTable: async ({ id, attributes }) =>
-        updateCollectionItem(collections.tables, id, attributes),
-    putTable: async ({ diagramId, table }) =>
-        putCollectionItem(diagramId, collections.tables, table),
-    deleteTable: async ({ diagramId, id }) =>
-        deleteCollectionItem(diagramId, collections.tables, id),
+    updateTable: async ({ id, attributes }, context) => {
+        const diagramId = await updateCollectionItem(
+            collections.tables,
+            id,
+            attributes
+        );
+        notifyDiagramChange(diagramId, 'updateTable', context.sourceClientId);
+    },
+    putTable: async ({ diagramId, table }, context) => {
+        await putCollectionItem(diagramId, collections.tables, table);
+        notifyDiagramChange(diagramId, 'putTable', context.sourceClientId);
+    },
+    deleteTable: async ({ diagramId, id }, context) => {
+        await deleteCollectionItem(diagramId, collections.tables, id);
+        notifyDiagramChange(diagramId, 'deleteTable', context.sourceClientId);
+    },
     listTables: async (diagramId) =>
         listCollection(diagramId, collections.tables),
-    deleteDiagramTables: async (diagramId) =>
-        clearCollection(diagramId, collections.tables),
+    deleteDiagramTables: async (diagramId, context) => {
+        await clearCollection(diagramId, collections.tables);
+        notifyDiagramChange(
+            diagramId,
+            'deleteDiagramTables',
+            context.sourceClientId
+        );
+    },
 
-    addRelationship: async ({ diagramId, relationship }) =>
-        addCollectionItem(diagramId, collections.relationships, relationship),
+    addRelationship: async ({ diagramId, relationship }, context) => {
+        await addCollectionItem(
+            diagramId,
+            collections.relationships,
+            relationship
+        );
+        notifyDiagramChange(
+            diagramId,
+            'addRelationship',
+            context.sourceClientId
+        );
+    },
     getRelationship: async ({ diagramId, id }) =>
         getCollectionItem(diagramId, collections.relationships, id),
-    updateRelationship: async ({ id, attributes }) =>
-        updateCollectionItem(collections.relationships, id, attributes),
-    deleteRelationship: async ({ diagramId, id }) =>
-        deleteCollectionItem(diagramId, collections.relationships, id),
+    updateRelationship: async ({ id, attributes }, context) => {
+        const diagramId = await updateCollectionItem(
+            collections.relationships,
+            id,
+            attributes
+        );
+        notifyDiagramChange(
+            diagramId,
+            'updateRelationship',
+            context.sourceClientId
+        );
+    },
+    deleteRelationship: async ({ diagramId, id }, context) => {
+        await deleteCollectionItem(diagramId, collections.relationships, id);
+        notifyDiagramChange(
+            diagramId,
+            'deleteRelationship',
+            context.sourceClientId
+        );
+    },
     listRelationships: async (diagramId) =>
         listCollection(diagramId, collections.relationships),
-    deleteDiagramRelationships: async (diagramId) =>
-        clearCollection(diagramId, collections.relationships),
+    deleteDiagramRelationships: async (diagramId, context) => {
+        await clearCollection(diagramId, collections.relationships);
+        notifyDiagramChange(
+            diagramId,
+            'deleteDiagramRelationships',
+            context.sourceClientId
+        );
+    },
 
-    addDependency: async ({ diagramId, dependency }) =>
-        addCollectionItem(diagramId, collections.dependencies, dependency),
+    addDependency: async ({ diagramId, dependency }, context) => {
+        await addCollectionItem(
+            diagramId,
+            collections.dependencies,
+            dependency
+        );
+        notifyDiagramChange(diagramId, 'addDependency', context.sourceClientId);
+    },
     getDependency: async ({ diagramId, id }) =>
         getCollectionItem(diagramId, collections.dependencies, id),
-    updateDependency: async ({ id, attributes }) =>
-        updateCollectionItem(collections.dependencies, id, attributes),
-    deleteDependency: async ({ diagramId, id }) =>
-        deleteCollectionItem(diagramId, collections.dependencies, id),
+    updateDependency: async ({ id, attributes }, context) => {
+        const diagramId = await updateCollectionItem(
+            collections.dependencies,
+            id,
+            attributes
+        );
+        notifyDiagramChange(
+            diagramId,
+            'updateDependency',
+            context.sourceClientId
+        );
+    },
+    deleteDependency: async ({ diagramId, id }, context) => {
+        await deleteCollectionItem(diagramId, collections.dependencies, id);
+        notifyDiagramChange(
+            diagramId,
+            'deleteDependency',
+            context.sourceClientId
+        );
+    },
     listDependencies: async (diagramId) =>
         listCollection(diagramId, collections.dependencies),
-    deleteDiagramDependencies: async (diagramId) =>
-        clearCollection(diagramId, collections.dependencies),
+    deleteDiagramDependencies: async (diagramId, context) => {
+        await clearCollection(diagramId, collections.dependencies);
+        notifyDiagramChange(
+            diagramId,
+            'deleteDiagramDependencies',
+            context.sourceClientId
+        );
+    },
 
-    addArea: async ({ diagramId, area }) =>
-        addCollectionItem(diagramId, collections.areas, area),
+    addArea: async ({ diagramId, area }, context) => {
+        await addCollectionItem(diagramId, collections.areas, area);
+        notifyDiagramChange(diagramId, 'addArea', context.sourceClientId);
+    },
     getArea: async ({ diagramId, id }) =>
         getCollectionItem(diagramId, collections.areas, id),
-    updateArea: async ({ id, attributes }) =>
-        updateCollectionItem(collections.areas, id, attributes),
-    deleteArea: async ({ diagramId, id }) =>
-        deleteCollectionItem(diagramId, collections.areas, id),
+    updateArea: async ({ id, attributes }, context) => {
+        const diagramId = await updateCollectionItem(
+            collections.areas,
+            id,
+            attributes
+        );
+        notifyDiagramChange(diagramId, 'updateArea', context.sourceClientId);
+    },
+    deleteArea: async ({ diagramId, id }, context) => {
+        await deleteCollectionItem(diagramId, collections.areas, id);
+        notifyDiagramChange(diagramId, 'deleteArea', context.sourceClientId);
+    },
     listAreas: async (diagramId) =>
         listCollection(diagramId, collections.areas),
-    deleteDiagramAreas: async (diagramId) =>
-        clearCollection(diagramId, collections.areas),
+    deleteDiagramAreas: async (diagramId, context) => {
+        await clearCollection(diagramId, collections.areas);
+        notifyDiagramChange(
+            diagramId,
+            'deleteDiagramAreas',
+            context.sourceClientId
+        );
+    },
 
-    addCustomType: async ({ diagramId, customType }) =>
-        addCollectionItem(diagramId, collections.customTypes, customType),
+    addCustomType: async ({ diagramId, customType }, context) => {
+        await addCollectionItem(diagramId, collections.customTypes, customType);
+        notifyDiagramChange(diagramId, 'addCustomType', context.sourceClientId);
+    },
     getCustomType: async ({ diagramId, id }) =>
         getCollectionItem(diagramId, collections.customTypes, id),
-    updateCustomType: async ({ id, attributes }) =>
-        updateCollectionItem(collections.customTypes, id, attributes),
-    deleteCustomType: async ({ diagramId, id }) =>
-        deleteCollectionItem(diagramId, collections.customTypes, id),
+    updateCustomType: async ({ id, attributes }, context) => {
+        const diagramId = await updateCollectionItem(
+            collections.customTypes,
+            id,
+            attributes
+        );
+        notifyDiagramChange(
+            diagramId,
+            'updateCustomType',
+            context.sourceClientId
+        );
+    },
+    deleteCustomType: async ({ diagramId, id }, context) => {
+        await deleteCollectionItem(diagramId, collections.customTypes, id);
+        notifyDiagramChange(
+            diagramId,
+            'deleteCustomType',
+            context.sourceClientId
+        );
+    },
     listCustomTypes: async (diagramId) =>
         listCollection(diagramId, collections.customTypes),
-    deleteDiagramCustomTypes: async (diagramId) =>
-        clearCollection(diagramId, collections.customTypes),
+    deleteDiagramCustomTypes: async (diagramId, context) => {
+        await clearCollection(diagramId, collections.customTypes);
+        notifyDiagramChange(
+            diagramId,
+            'deleteDiagramCustomTypes',
+            context.sourceClientId
+        );
+    },
 
-    addNote: async ({ diagramId, note }) =>
-        addCollectionItem(diagramId, collections.notes, note),
+    addNote: async ({ diagramId, note }, context) => {
+        await addCollectionItem(diagramId, collections.notes, note);
+        notifyDiagramChange(diagramId, 'addNote', context.sourceClientId);
+    },
     getNote: async ({ diagramId, id }) =>
         getCollectionItem(diagramId, collections.notes, id),
-    updateNote: async ({ id, attributes }) =>
-        updateCollectionItem(collections.notes, id, attributes),
-    deleteNote: async ({ diagramId, id }) =>
-        deleteCollectionItem(diagramId, collections.notes, id),
+    updateNote: async ({ id, attributes }, context) => {
+        const diagramId = await updateCollectionItem(
+            collections.notes,
+            id,
+            attributes
+        );
+        notifyDiagramChange(diagramId, 'updateNote', context.sourceClientId);
+    },
+    deleteNote: async ({ diagramId, id }, context) => {
+        await deleteCollectionItem(diagramId, collections.notes, id);
+        notifyDiagramChange(diagramId, 'deleteNote', context.sourceClientId);
+    },
     listNotes: async (diagramId) =>
         listCollection(diagramId, collections.notes),
-    deleteDiagramNotes: async (diagramId) =>
-        clearCollection(diagramId, collections.notes),
+    deleteDiagramNotes: async (diagramId, context) => {
+        await clearCollection(diagramId, collections.notes);
+        notifyDiagramChange(
+            diagramId,
+            'deleteDiagramNotes',
+            context.sourceClientId
+        );
+    },
 };
 
 const readRequestBody = async (request) => {
@@ -401,6 +599,45 @@ const sendJson = (response, statusCode, data) => {
     response.end(JSON.stringify(data));
 };
 
+const handleStorageEvents = (request, response) => {
+    const url = new URL(request.url, `http://${request.headers.host}`);
+    const diagramId = safeId(url.searchParams.get('diagramId'));
+    const clientId = url.searchParams.get('clientId') ?? undefined;
+    const clients = getClientsForDiagram(diagramId);
+
+    response.writeHead(200, {
+        'content-type': 'text/event-stream; charset=utf-8',
+        'cache-control': 'no-store, no-transform',
+        connection: 'keep-alive',
+        'x-accel-buffering': 'no',
+        'access-control-allow-origin': '*',
+    });
+    response.write('retry: 2000\n\n');
+
+    const client = { response, clientId };
+    clients.add(client);
+    sendSseEvent(response, 'connected', {
+        type: 'connected',
+        diagramId,
+        revision: storageRevision,
+    });
+
+    request.on('close', () => {
+        clients.delete(client);
+        if (clients.size === 0) {
+            sseClients.delete(diagramId);
+        }
+    });
+};
+
+setInterval(() => {
+    for (const clients of sseClients.values()) {
+        for (const client of clients) {
+            client.response.write(': heartbeat\n\n');
+        }
+    }
+}, 25000).unref();
+
 const server = createServer(async (request, response) => {
     try {
         if (request.method === 'OPTIONS') {
@@ -410,6 +647,14 @@ const server = createServer(async (request, response) => {
 
         if (request.method === 'GET' && request.url === '/api/health') {
             sendJson(response, 200, { ok: true });
+            return;
+        }
+
+        if (
+            request.method === 'GET' &&
+            request.url?.startsWith('/api/storage/events')
+        ) {
+            handleStorageEvents(request, response);
             return;
         }
 
@@ -429,7 +674,11 @@ const server = createServer(async (request, response) => {
             return;
         }
 
-        const data = await enqueue(() => handler(payload));
+        const data = await enqueue(() =>
+            handler(payload, {
+                sourceClientId: request.headers['x-chartdb-client-id'],
+            })
+        );
         sendJson(response, 200, { data });
     } catch (error) {
         console.error(error);

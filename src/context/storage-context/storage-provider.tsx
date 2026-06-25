@@ -926,6 +926,7 @@ const BrowserStorageProvider: React.FC<React.PropsWithChildren> = ({
                 getDiagramFilter,
                 updateDiagramFilter,
                 deleteDiagramFilter,
+                subscribeToDiagramChanges: () => () => undefined,
             }}
         >
             {children}

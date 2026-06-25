@@ -10,7 +10,20 @@ import type { DBCustomType } from '@/lib/domain/db-custom-type';
 import type { DiagramFilter } from '@/lib/domain/diagram-filter/diagram-filter';
 import type { Note } from '@/lib/domain/note';
 
+export interface StorageDiagramChangeEvent {
+    type: 'connected' | 'diagram_changed' | 'diagram_deleted';
+    diagramId: string;
+    action?: string;
+    revision?: number;
+    sourceClientId?: string;
+}
+
 export interface StorageContext {
+    subscribeToDiagramChanges: (
+        diagramId: string,
+        onChange: (event: StorageDiagramChangeEvent) => void
+    ) => () => void;
+
     // Config operations
     getConfig: () => Promise<ChartDBConfig | undefined>;
     updateConfig: (config: Partial<ChartDBConfig>) => Promise<void>;
@@ -155,6 +168,8 @@ export interface StorageContext {
 }
 
 export const storageInitialValue: StorageContext = {
+    subscribeToDiagramChanges: () => emptyFn,
+
     getConfig: emptyFn,
     updateConfig: emptyFn,
 

@@ -1,4 +1,10 @@
-import React, { useCallback, useMemo, useState } from 'react';
+import React, {
+    useCallback,
+    useEffect,
+    useMemo,
+    useRef,
+    useState,
+} from 'react';
 import type { DBTable } from '@/lib/domain/db-table';
 import { deepCopy, generateId } from '@/lib/utils';
 import { defaultTableColor, randomColor, viewColor } from '@/lib/colors';
@@ -26,7 +32,10 @@ import { useEventEmitter } from 'ahooks';
 import type { DBDependency } from '@/lib/domain/db-dependency';
 import type { Area } from '@/lib/domain/area';
 import type { Note } from '@/lib/domain/note';
-import { storageInitialValue } from '../storage-context/storage-context';
+import {
+    storageInitialValue,
+    type StorageDiagramChangeEvent,
+} from '../storage-context/storage-context';
 import { useDiff } from '../diff-context/use-diff';
 import type { DiffCalculatedEvent } from '../diff-context/diff-context';
 import {
@@ -76,6 +85,8 @@ export const ChartDBProvider: React.FC<
 
     const [highlightedCustomTypeId, setHighlightedCustomTypeId] =
         useState<string>();
+    const serverSyncTimerRef = useRef<number>();
+    const serverSyncLoadingRef = useRef(false);
 
     const diffCalculatedHandler = useCallback((event: DiffCalculatedEvent) => {
         const { tablesToAdd, fieldsToAdd, relationshipsToAdd, areasToAdd } =
@@ -170,6 +181,24 @@ export const ChartDBProvider: React.FC<
             diagramUpdatedAt,
         ]
     );
+
+    const resetLocalDiagramData = useCallback(() => {
+        setDiagramId('');
+        setDiagramName('');
+        setDatabaseType(DatabaseType.GENERIC);
+        setDatabaseEdition(undefined);
+        setTables([]);
+        setRelationships([]);
+        setDependencies([]);
+        setAreas([]);
+        setCustomTypes([]);
+        setNotes([]);
+        setDiagramCreatedAt(new Date());
+        setDiagramUpdatedAt(new Date());
+        setHighlightedCustomTypeId(undefined);
+        resetRedoStack();
+        resetUndoStack();
+    }, [resetRedoStack, resetUndoStack]);
 
     const clearDiagramData: ChartDBContext['clearDiagramData'] =
         useCallback(async () => {
@@ -1950,6 +1979,62 @@ export const ChartDBProvider: React.FC<
         },
         [storageDB, loadDiagramFromData]
     );
+
+    useEffect(() => {
+        if (readonly || !diagramId) {
+            return;
+        }
+
+        const reloadFromServer = (event: StorageDiagramChangeEvent) => {
+            window.clearTimeout(serverSyncTimerRef.current);
+            serverSyncTimerRef.current = window.setTimeout(async () => {
+                if (serverSyncLoadingRef.current) {
+                    return;
+                }
+
+                serverSyncLoadingRef.current = true;
+
+                try {
+                    const diagram = await storageDB.getDiagram(diagramId, {
+                        includeRelationships: true,
+                        includeTables: true,
+                        includeDependencies: true,
+                        includeAreas: true,
+                        includeCustomTypes: true,
+                        includeNotes: true,
+                    });
+
+                    if (diagram) {
+                        loadDiagramFromData(diagram);
+                        return;
+                    }
+
+                    if (event.type !== 'diagram_changed') {
+                        resetLocalDiagramData();
+                    }
+                } finally {
+                    serverSyncLoadingRef.current = false;
+                    serverSyncTimerRef.current = undefined;
+                }
+            }, 200);
+        };
+
+        const unsubscribe = storageDB.subscribeToDiagramChanges(
+            diagramId,
+            reloadFromServer
+        );
+
+        return () => {
+            unsubscribe();
+            window.clearTimeout(serverSyncTimerRef.current);
+        };
+    }, [
+        diagramId,
+        loadDiagramFromData,
+        readonly,
+        resetLocalDiagramData,
+        storageDB,
+    ]);
 
     // Custom type operations
     const getCustomType: ChartDBContext['getCustomType'] = useCallback(
