@@ -5,23 +5,24 @@ services:
         init: true
         command: >
             sh -c "npm ci &&
-            (node server/local-storage-server.mjs &) &&
             npm run dev -- --host 0.0.0.0 --port 5173"
+        depends_on:
+            storage:
+                condition: service_healthy
         expose:
             - '5173'
         environment:
             VITE_STORAGE_BACKEND: 'server'
+            VITE_STORAGE_API_PROXY_TARGET: 'http://storage:3001'
             VITE_HIDE_CHARTDB_CLOUD: 'true'
             VITE_DISABLE_ANALYTICS: 'true'
             CHOKIDAR_USEPOLLING: 'true'
-            STORAGE_DATA_DIR: '/data'
-            STORAGE_PORT: '3001'
         volumes:
             - .:/usr/src/app
             - chartdb_node_modules:/usr/src/app/node_modules
-            - chartdb_data:/data
         networks:
             - proxy
+            - internal
         labels:
             - traefik.enable=true
             - traefik.scope=exima-chartdb
@@ -41,11 +42,41 @@ services:
             - traefik.http.services.chartdb.loadbalancer.server.port=5173
             - traefik.http.services.chartdb.loadbalancer.passhostheader=false
 
+    storage:
+        image: node:24-alpine
+        working_dir: /usr/src/app
+        init: true
+        command: node server/local-storage-server.mjs
+        expose:
+            - '3001'
+        environment:
+            STORAGE_DATA_DIR: '/data'
+            STORAGE_PORT: '3001'
+        volumes:
+            - .:/usr/src/app:ro
+            - ./chartdb_data:/data
+        networks:
+            - internal
+        healthcheck:
+            test:
+                [
+                    'CMD',
+                    'node',
+                    '--input-type=module',
+                    '-e',
+                    "const r = await fetch('http://127.0.0.1:3001/api/health'); process.exit(r.ok ? 0 : 1);",
+                ]
+            interval: 10s
+            timeout: 5s
+            retries: 5
+            start_period: 5s
+
 networks:
     proxy:
         name: ${CHARTDB_PROXY_NETWORK:-chartdb-proxy}
         external: true
+    internal:
+        internal: true
 
 volumes:
     chartdb_node_modules:
-    chartdb_data:
