@@ -292,6 +292,8 @@ export const zh_TW: LanguageTranslation = {
                         highlight_fields: '突出顯示欄位',
                         delete_custom_type: '刪除',
                         clear_field_highlight: '清除突出顯示',
+                        show_on_canvas: 'Show on diagram',
+                        update_canvas_block: 'Update block on diagram',
                     },
                     delete_custom_type: '刪除類型',
                 },

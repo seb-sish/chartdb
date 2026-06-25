@@ -297,6 +297,8 @@ export const ru: LanguageTranslation = {
                         highlight_fields: 'Выделить поля',
                         delete_custom_type: 'Удалить',
                         clear_field_highlight: 'Снять выделение',
+                        show_on_canvas: 'Показать на диаграмме',
+                        update_canvas_block: 'Обновить блок на диаграмме',
                     },
                     delete_custom_type: 'Удалить тип',
                 },

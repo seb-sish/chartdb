@@ -298,6 +298,8 @@ export const vi: LanguageTranslation = {
                         highlight_fields: 'Làm Nổi Bật Trường',
                         delete_custom_type: 'Xóa',
                         clear_field_highlight: 'Xóa Làm Nổi Bật',
+                        show_on_canvas: 'Show on diagram',
+                        update_canvas_block: 'Update block on diagram',
                     },
                     delete_custom_type: 'Xóa Loại',
                 },

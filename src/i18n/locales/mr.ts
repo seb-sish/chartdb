@@ -303,6 +303,8 @@ export const mr: LanguageTranslation = {
                         highlight_fields: 'फील्ड्स हायलाइट करा',
                         delete_custom_type: 'हटवा',
                         clear_field_highlight: 'हायलाइट काढा',
+                        show_on_canvas: 'Show on diagram',
+                        update_canvas_block: 'Update block on diagram',
                     },
                     delete_custom_type: 'प्रकार हटवा',
                 },

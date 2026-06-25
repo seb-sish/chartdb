@@ -299,6 +299,8 @@ export const ne: LanguageTranslation = {
                         highlight_fields: 'फिल्डहरू हाइलाइट गर्नुहोस्',
                         delete_custom_type: 'मेट्नुहोस्',
                         clear_field_highlight: 'हाइलाइट हटाउनुहोस्',
+                        show_on_canvas: 'Show on diagram',
+                        update_canvas_block: 'Update block on diagram',
                     },
                     delete_custom_type: 'प्रकार मेट्नुहोस्',
                 },

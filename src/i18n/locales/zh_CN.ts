@@ -292,6 +292,8 @@ export const zh_CN: LanguageTranslation = {
                         highlight_fields: '高亮字段',
                         delete_custom_type: '删除',
                         clear_field_highlight: '清除高亮',
+                        show_on_canvas: 'Show on diagram',
+                        update_canvas_block: 'Update block on diagram',
                     },
                     delete_custom_type: '删除类型',
                 },

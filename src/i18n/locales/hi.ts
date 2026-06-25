@@ -300,6 +300,8 @@ export const hi: LanguageTranslation = {
                         highlight_fields: 'फ़ील्ड हाइलाइट करें',
                         delete_custom_type: 'हटाएं',
                         clear_field_highlight: 'हाइलाइट हटाएं',
+                        show_on_canvas: 'Show on diagram',
+                        update_canvas_block: 'Update block on diagram',
                     },
                     delete_custom_type: 'प्रकार हटाएं',
                 },

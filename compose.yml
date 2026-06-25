@@ -1,0 +1,51 @@
+services:
+    chartdb:
+        image: node:24-alpine
+        working_dir: /usr/src/app
+        init: true
+        command: >
+            sh -c "npm ci &&
+            (node server/local-storage-server.mjs &) &&
+            npm run dev -- --host 0.0.0.0 --port 5173"
+        expose:
+            - '5173'
+        environment:
+            VITE_STORAGE_BACKEND: 'server'
+            VITE_HIDE_CHARTDB_CLOUD: 'true'
+            VITE_DISABLE_ANALYTICS: 'true'
+            CHOKIDAR_USEPOLLING: 'true'
+            STORAGE_DATA_DIR: '/data'
+            STORAGE_PORT: '3001'
+        volumes:
+            - .:/usr/src/app
+            - chartdb_node_modules:/usr/src/app/node_modules
+            - chartdb_data:/data
+        networks:
+            - proxy
+        labels:
+            - traefik.enable=true
+            - traefik.scope=exima-chartdb
+            - traefik.docker.network=${CHARTDB_PROXY_NETWORK:-chartdb-proxy}
+            - traefik.http.routers.chartdb-http.rule=Host(`${CHARTDB_DOMAIN:-chartdb.example.com}`)
+            - traefik.http.routers.chartdb-http.entrypoints=web
+            - traefik.http.routers.chartdb-http.middlewares=redirect-to-https
+            - traefik.http.routers.chartdb-http.service=chartdb
+            - traefik.http.routers.chartdb.rule=Host(`${CHARTDB_DOMAIN:-chartdb.example.com}`)
+            - traefik.http.routers.chartdb.entrypoints=websecure
+            - traefik.http.routers.chartdb.tls=true
+            - traefik.http.routers.chartdb.tls.certresolver=le
+            - traefik.http.routers.chartdb.middlewares=chartdb-basic-auth
+            - traefik.http.routers.chartdb.service=chartdb
+            - traefik.http.middlewares.chartdb-basic-auth.basicauth.users=${CHARTDB_BASIC_AUTH_USERS:?Set CHARTDB_BASIC_AUTH_USERS in .env}
+            - traefik.http.middlewares.chartdb-basic-auth.basicauth.removeheader=true
+            - traefik.http.services.chartdb.loadbalancer.server.port=5173
+            - traefik.http.services.chartdb.loadbalancer.passhostheader=false
+
+networks:
+    proxy:
+        name: ${CHARTDB_PROXY_NETWORK:-chartdb-proxy}
+        external: true
+
+volumes:
+    chartdb_node_modules:
+    chartdb_data:

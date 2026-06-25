@@ -300,6 +300,8 @@ export const bn: LanguageTranslation = {
                         highlight_fields: 'ফিল্ড হাইলাইট করুন',
                         delete_custom_type: 'মুছুন',
                         clear_field_highlight: 'হাইলাইট সরান',
+                        show_on_canvas: 'Show on diagram',
+                        update_canvas_block: 'Update block on diagram',
                     },
                     delete_custom_type: 'টাইপ মুছুন',
                 },

@@ -300,6 +300,8 @@ export const pt_BR: LanguageTranslation = {
                         highlight_fields: 'Destacar Campos',
                         delete_custom_type: 'Excluir',
                         clear_field_highlight: 'Remover Destaque',
+                        show_on_canvas: 'Show on diagram',
+                        update_canvas_block: 'Update block on diagram',
                     },
                     delete_custom_type: 'Excluir Tipo',
                 },

@@ -299,6 +299,8 @@ export const gu: LanguageTranslation = {
                         highlight_fields: 'ફીલ્ડ્સ હાઇલાઇટ કરો',
                         delete_custom_type: 'કાઢી નાખો',
                         clear_field_highlight: 'હાઇલાઇટ કાઢો',
+                        show_on_canvas: 'Show on diagram',
+                        update_canvas_block: 'Update block on diagram',
                     },
                     delete_custom_type: 'પ્રકાર કાઢી નાખો',
                 },

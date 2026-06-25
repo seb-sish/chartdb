@@ -1,6 +1,7 @@
 import React, { useCallback, useMemo } from 'react';
 import type { StorageContext } from './storage-context';
 import { storageContext } from './storage-context';
+import { ServerStorageProvider } from './server-storage-provider';
 import Dexie, { type EntityTable } from 'dexie';
 import type { Diagram } from '@/lib/domain/diagram';
 import type { DBTable } from '@/lib/domain/db-table';
@@ -13,7 +14,7 @@ import type { DBCustomType } from '@/lib/domain/db-custom-type';
 import type { DiagramFilter } from '@/lib/domain/diagram-filter/diagram-filter';
 import type { Note } from '@/lib/domain/note';
 
-export const StorageProvider: React.FC<React.PropsWithChildren> = ({
+const BrowserStorageProvider: React.FC<React.PropsWithChildren> = ({
     children,
 }) => {
     const db = useMemo(() => {
@@ -930,4 +931,12 @@ export const StorageProvider: React.FC<React.PropsWithChildren> = ({
             {children}
         </storageContext.Provider>
     );
+};
+
+export const StorageProvider: React.FC<React.PropsWithChildren> = (props) => {
+    if (import.meta.env.VITE_STORAGE_BACKEND === 'server') {
+        return <ServerStorageProvider {...props} />;
+    }
+
+    return <BrowserStorageProvider {...props} />;
 };

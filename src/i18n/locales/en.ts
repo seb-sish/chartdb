@@ -290,6 +290,8 @@ export const en = {
                         title: 'Actions',
                         highlight_fields: 'Highlight Fields',
                         clear_field_highlight: 'Clear Highlight',
+                        show_on_canvas: 'Show on diagram',
+                        update_canvas_block: 'Update block on diagram',
                         delete_custom_type: 'Delete',
                     },
                     delete_custom_type: 'Delete Type',

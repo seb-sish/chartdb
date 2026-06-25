@@ -298,6 +298,8 @@ export const uk: LanguageTranslation = {
                         highlight_fields: 'Виділити поля',
                         delete_custom_type: 'Видалити',
                         clear_field_highlight: 'Зняти виділення',
+                        show_on_canvas: 'Show on diagram',
+                        update_canvas_block: 'Update block on diagram',
                     },
                     delete_custom_type: 'Видалити тип',
                 },

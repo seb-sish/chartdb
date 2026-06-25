@@ -297,6 +297,8 @@ export const tr: LanguageTranslation = {
                         highlight_fields: 'Alanları Vurgula',
                         delete_custom_type: 'Sil',
                         clear_field_highlight: 'Vurguyu Kaldır',
+                        show_on_canvas: 'Show on diagram',
+                        update_canvas_block: 'Update block on diagram',
                     },
                     delete_custom_type: 'Tipi Sil',
                 },

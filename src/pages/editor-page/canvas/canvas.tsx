@@ -61,6 +61,10 @@ import { useTheme } from '@/hooks/use-theme';
 import { useTranslation } from 'react-i18next';
 import type { DBTable } from '@/lib/domain/db-table';
 import { MIN_TABLE_SIZE } from '@/lib/domain/db-table';
+import {
+    DBCustomTypeKind,
+    type DBCustomType,
+} from '@/lib/domain/db-custom-type';
 import { useLocalConfig } from '@/hooks/use-local-config';
 import {
     Tooltip,
@@ -94,6 +98,12 @@ import type { Area } from '@/lib/domain/area';
 import type { NoteNodeType } from './note-node/note-node';
 import { NoteNode } from './note-node/note-node';
 import type { Note } from '@/lib/domain/note';
+import type { EnumTypeNodeType } from './enum-type-node/enum-type-node';
+import {
+    EnumTypeNode,
+    customTypeIdToEnumTypeNodeId,
+    enumTypeNodeIdToCustomTypeId,
+} from './enum-type-node/enum-type-node';
 import type { TempCursorNodeType } from './temp-cursor-node/temp-cursor-node';
 import {
     TEMP_CURSOR_HANDLE_ID,
@@ -135,6 +145,7 @@ export type NodeType =
     | TableNodeType
     | AreaNodeType
     | NoteNodeType
+    | EnumTypeNodeType
     | TempCursorNodeType
     | CreateRelationshipNodeType;
 
@@ -150,6 +161,7 @@ const nodeTypes: NodeTypes = {
     table: TableNode,
     area: AreaNode,
     note: NoteNode,
+    'enum-type': EnumTypeNode,
     'temp-cursor': TempCursorNode,
     'create-relationship': CreateRelationshipNode,
 };
@@ -269,6 +281,28 @@ const noteToNoteNode = (note: Note): NoteNodeType => {
     };
 };
 
+const customTypeToEnumTypeNode = (
+    customType: DBCustomType
+): EnumTypeNodeType | null => {
+    if (customType.kind !== DBCustomTypeKind.enum || !customType.showOnCanvas) {
+        return null;
+    }
+
+    return {
+        id: customTypeIdToEnumTypeNodeId(customType.id),
+        type: 'enum-type',
+        position: {
+            x: customType.x ?? 0,
+            y: customType.y ?? 0,
+        },
+        data: {
+            customType,
+        },
+        width: customType.width ?? 240,
+        zIndex: 40,
+    };
+};
+
 export interface CanvasProps {
     initialTables: DBTable[];
 }
@@ -297,11 +331,13 @@ export const Canvas: React.FC<CanvasProps> = ({ initialTables }) => {
         databaseType,
         events,
         dependencies,
+        customTypes,
         readonly,
         removeArea,
         updateArea,
         removeNote,
         updateNote,
+        updateCustomType,
         highlightedCustomType,
         highlightCustomTypeId,
     } = useChartDB();
@@ -342,8 +378,8 @@ export const Canvas: React.FC<CanvasProps> = ({ initialTables }) => {
 
     const [isInitialLoadingNodes, setIsInitialLoadingNodes] = useState(true);
 
-    const [nodes, setNodes, onNodesChange] = useNodesState<NodeType>(
-        initialTables.map((table) =>
+    const [nodes, setNodes, onNodesChange] = useNodesState<NodeType>([
+        ...initialTables.map((table) =>
             tableToTableNode(table, {
                 filter,
                 databaseType,
@@ -352,8 +388,11 @@ export const Canvas: React.FC<CanvasProps> = ({ initialTables }) => {
                 forceShow: shouldForceShowTable(table.id),
                 isRelationshipCreatingTarget: false,
             })
-        )
-    );
+        ),
+        ...customTypes
+            .map(customTypeToEnumTypeNode)
+            .filter((node): node is EnumTypeNodeType => !!node),
+    ]);
     const [edges, setEdges, onEdgesChange] =
         useEdgesState<EdgeType>(initialEdges);
 
@@ -369,21 +408,27 @@ export const Canvas: React.FC<CanvasProps> = ({ initialTables }) => {
     }, [initialTables]);
 
     useEffect(() => {
-        const initialNodes = initialTables.map((table) =>
-            tableToTableNode(table, {
-                filter,
-                databaseType,
-                filterLoading,
-                showDBViews,
-                forceShow: shouldForceShowTable(table.id),
-                isRelationshipCreatingTarget: false,
-            })
-        );
+        const initialNodes = [
+            ...initialTables.map((table) =>
+                tableToTableNode(table, {
+                    filter,
+                    databaseType,
+                    filterLoading,
+                    showDBViews,
+                    forceShow: shouldForceShowTable(table.id),
+                    isRelationshipCreatingTarget: false,
+                })
+            ),
+            ...customTypes
+                .map(customTypeToEnumTypeNode)
+                .filter((node): node is EnumTypeNodeType => !!node),
+        ];
         if (equal(initialNodes, nodes)) {
             setIsInitialLoadingNodes(false);
         }
     }, [
         initialTables,
+        customTypes,
         nodes,
         filter,
         databaseType,
@@ -646,6 +691,9 @@ export const Canvas: React.FC<CanvasProps> = ({ initialTables }) => {
                     })
                 ),
                 ...notes.map((note) => noteToNoteNode(note)),
+                ...customTypes
+                    .map(customTypeToEnumTypeNode)
+                    .filter((node): node is EnumTypeNodeType => !!node),
                 ...prevNodes.filter(
                     (n) =>
                         n.type === 'temp-cursor' ||
@@ -664,6 +712,7 @@ export const Canvas: React.FC<CanvasProps> = ({ initialTables }) => {
         tables,
         areas,
         notes,
+        customTypes,
         setNodes,
         filter,
         databaseType,
@@ -1093,6 +1142,13 @@ export const Canvas: React.FC<CanvasProps> = ({ initialTables }) => {
                 sizeChanges: noteSizeChanges,
             } = findRelevantNodesChanges(changesToApply, 'note');
 
+            // Then, detect enum type changes
+            const {
+                positionChanges: enumPositionChanges,
+                removeChanges: enumRemoveChanges,
+                sizeChanges: enumSizeChanges,
+            } = findRelevantNodesChanges(changesToApply, 'enum-type');
+
             // Then, detect table changes
             const { positionChanges, removeChanges, sizeChanges } =
                 findRelevantNodesChanges(changesToApply, 'table');
@@ -1317,6 +1373,63 @@ export const Canvas: React.FC<CanvasProps> = ({ initialTables }) => {
                 }
             }
 
+            if (
+                enumPositionChanges.length > 0 ||
+                enumRemoveChanges.length > 0 ||
+                enumSizeChanges.length > 0
+            ) {
+                for (const change of enumPositionChanges) {
+                    if (change.type !== 'position' || !change.position) {
+                        continue;
+                    }
+
+                    const customTypeId = enumTypeNodeIdToCustomTypeId(
+                        change.id
+                    );
+
+                    updateCustomType(
+                        customTypeId,
+                        {
+                            x: change.position.x,
+                            y: change.position.y,
+                        },
+                        { updateHistory: false }
+                    );
+                }
+
+                for (const change of enumSizeChanges) {
+                    if (change.type !== 'dimensions' || !change.dimensions) {
+                        continue;
+                    }
+
+                    const customTypeId = enumTypeNodeIdToCustomTypeId(
+                        change.id
+                    );
+
+                    updateCustomType(
+                        customTypeId,
+                        {
+                            width: change.dimensions.width,
+                        },
+                        { updateHistory: false }
+                    );
+                }
+
+                for (const change of enumRemoveChanges) {
+                    const customTypeId = enumTypeNodeIdToCustomTypeId(
+                        change.id
+                    );
+
+                    updateCustomType(
+                        customTypeId,
+                        {
+                            showOnCanvas: false,
+                        },
+                        { updateHistory: true }
+                    );
+                }
+            }
+
             return onNodesChange(changesToApply);
         },
         [
@@ -1328,6 +1441,7 @@ export const Canvas: React.FC<CanvasProps> = ({ initialTables }) => {
             removeArea,
             updateNote,
             removeNote,
+            updateCustomType,
             readonly,
             tables,
             areas,

@@ -299,6 +299,8 @@ export const es: LanguageTranslation = {
                         highlight_fields: 'Resaltar Campos',
                         delete_custom_type: 'Eliminar',
                         clear_field_highlight: 'Quitar Resaltado',
+                        show_on_canvas: 'Show on diagram',
+                        update_canvas_block: 'Update block on diagram',
                     },
                     delete_custom_type: 'Eliminar Tipo',
                 },

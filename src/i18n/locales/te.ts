@@ -299,6 +299,8 @@ export const te: LanguageTranslation = {
                         highlight_fields: 'ఫీల్డ్‌లను హైలైట్ చేయండి',
                         delete_custom_type: 'తొలగించండి',
                         clear_field_highlight: 'హైలైట్ తొలగించండి',
+                        show_on_canvas: 'Show on diagram',
+                        update_canvas_block: 'Update block on diagram',
                     },
                     delete_custom_type: 'రకాన్ని తొలగించండి',
                 },

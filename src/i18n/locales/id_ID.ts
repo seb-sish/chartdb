@@ -298,6 +298,8 @@ export const id_ID: LanguageTranslation = {
                         highlight_fields: 'Sorot Field',
                         delete_custom_type: 'Hapus',
                         clear_field_highlight: 'Hapus Sorotan',
+                        show_on_canvas: 'Show on diagram',
+                        update_canvas_block: 'Update block on diagram',
                     },
                     delete_custom_type: 'Hapus Tipe',
                 },

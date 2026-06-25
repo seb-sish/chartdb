@@ -18,6 +18,11 @@ export interface DBCustomType {
     values?: string[] | null; // For enum types
     fields?: DBCustomTypeField[] | null; // For composite types
     order?: number | null;
+    showOnCanvas?: boolean | null;
+    x?: number | null;
+    y?: number | null;
+    width?: number | null;
+    color?: string | null;
 }
 
 export const dbCustomTypeFieldSchema = z.object({
@@ -33,6 +38,11 @@ export const dbCustomTypeSchema: z.ZodType<DBCustomType> = z.object({
     values: z.array(z.string()).or(z.null()).optional(),
     fields: z.array(dbCustomTypeFieldSchema).or(z.null()).optional(),
     order: z.number().or(z.null()).optional(),
+    showOnCanvas: z.boolean().or(z.null()).optional(),
+    x: z.number().or(z.null()).optional(),
+    y: z.number().or(z.null()).optional(),
+    width: z.number().or(z.null()).optional(),
+    color: z.string().or(z.null()).optional(),
 });
 
 export const customTypeKindToLabel: Record<DBCustomTypeKind, string> = {

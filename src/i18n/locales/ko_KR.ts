@@ -298,6 +298,8 @@ export const ko_KR: LanguageTranslation = {
                         highlight_fields: '필드 강조 표시',
                         delete_custom_type: '삭제',
                         clear_field_highlight: '강조 표시 지우기',
+                        show_on_canvas: 'Show on diagram',
+                        update_canvas_block: 'Update block on diagram',
                     },
                     delete_custom_type: '타입 삭제',
                 },

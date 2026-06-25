@@ -294,6 +294,8 @@ export const ar: LanguageTranslation = {
                         highlight_fields: 'تمييز الحقول',
                         delete_custom_type: 'حذف',
                         clear_field_highlight: 'إزالة التمييز',
+                        show_on_canvas: 'Show on diagram',
+                        update_canvas_block: 'Update block on diagram',
                     },
                     delete_custom_type: 'حذف النوع',
                 },

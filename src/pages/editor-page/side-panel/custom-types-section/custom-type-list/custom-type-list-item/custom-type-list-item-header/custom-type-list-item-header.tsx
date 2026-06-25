@@ -6,6 +6,7 @@ import {
     Trash2,
     Check,
     Highlighter,
+    PanelTopOpen,
 } from 'lucide-react';
 import { ListItemHeaderButton } from '@/pages/editor-page/side-panel/list-item-header-button/list-item-header-button';
 import { Input } from '@/components/input/input';
@@ -110,6 +111,26 @@ export const CustomTypeListItemHeader: React.FC<
         [customType.id, highlightCustomTypeId, isHighlighted]
     );
 
+    const showOnCanvasHandler = useCallback(
+        (e: React.MouseEvent<HTMLDivElement, MouseEvent>) => {
+            e.stopPropagation();
+
+            updateCustomType(customType.id, {
+                showOnCanvas: true,
+                x: customType.x ?? 80,
+                y: customType.y ?? 80,
+                width: customType.width ?? 240,
+            });
+        },
+        [
+            customType.id,
+            customType.x,
+            customType.y,
+            customType.width,
+            updateCustomType,
+        ]
+    );
+
     const canHighlight = useMemo(
         () => checkIfCustomTypeUsed({ customType, tables }),
         [customType, tables]
@@ -143,6 +164,20 @@ export const CustomTypeListItemHeader: React.FC<
                             )}
                             <Highlighter className="size-3.5" />
                         </DropdownMenuItem>
+                        {customType.kind === DBCustomTypeKind.enum &&
+                        !readonly ? (
+                            <DropdownMenuItem
+                                onClick={showOnCanvasHandler}
+                                className="flex justify-between"
+                            >
+                                {t(
+                                    customType.showOnCanvas
+                                        ? 'side_panel.custom_types_section.custom_type.custom_type_actions.update_canvas_block'
+                                        : 'side_panel.custom_types_section.custom_type.custom_type_actions.show_on_canvas'
+                                )}
+                                <PanelTopOpen className="size-3.5" />
+                            </DropdownMenuItem>
+                        ) : null}
                         {!readonly ? (
                             <DropdownMenuItem
                                 onClick={deleteCustomTypeHandler}
@@ -165,6 +200,9 @@ export const CustomTypeListItemHeader: React.FC<
         canHighlight,
         isHighlighted,
         readonly,
+        customType.kind,
+        customType.showOnCanvas,
+        showOnCanvasHandler,
     ]);
 
     const schemaToDisplay = useMemo(() => {

@@ -301,6 +301,8 @@ export const ja: LanguageTranslation = {
                         highlight_fields: 'フィールドをハイライト',
                         delete_custom_type: '削除',
                         clear_field_highlight: 'ハイライトを解除',
+                        show_on_canvas: 'Show on diagram',
+                        update_canvas_block: 'Update block on diagram',
                     },
                     delete_custom_type: '型を削除',
                 },

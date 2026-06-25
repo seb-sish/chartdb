@@ -300,6 +300,8 @@ export const de: LanguageTranslation = {
                         highlight_fields: 'Felder hervorheben',
                         delete_custom_type: 'Löschen',
                         clear_field_highlight: 'Hervorhebung entfernen',
+                        show_on_canvas: 'Show on diagram',
+                        update_canvas_block: 'Update block on diagram',
                     },
                     delete_custom_type: 'Typ löschen',
                 },

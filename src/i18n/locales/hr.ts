@@ -294,6 +294,8 @@ export const hr: LanguageTranslation = {
                         title: 'Radnje',
                         highlight_fields: 'Istakni polja',
                         clear_field_highlight: 'Ukloni isticanje',
+                        show_on_canvas: 'Show on diagram',
+                        update_canvas_block: 'Update block on diagram',
                         delete_custom_type: 'Izbriši',
                     },
                     delete_custom_type: 'Izbriši tip',
